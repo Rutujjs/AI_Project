@@ -1,0 +1,31 @@
+rules:
+  - id: semgrep-python-loop-query
+    languages: [python]
+    message: Repeated network or database call inside loop increases computational and network overhead.
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: requests.get(...)
+          - pattern: requests.post(...)
+          - pattern: session.query(...)
+          - pattern: db.execute(...)
+
+  - id: semgrep-js-fetch-loop
+    languages: [javascript, typescript]
+    message: Repetitive network fetch call detected. Consider batching or caching.
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: fetch(...)
+          - pattern: axios.get(...)
+          - pattern: axios.post(...)
+
+  - id: semgrep-expensive-sync-call
+    languages: [javascript, typescript]
+    message: Synchronous file or cryptographic operation can block the event loop.
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: fs.readFileSync(...)
+          - pattern: fs.writeFileSync(...)
+

@@ -1,0 +1,105 @@
+/* Reusable enterprise ESG components are defined in style.css. This file is intentionally kept separate so module-specific visual additions can be added safely. */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{padding:15px 16px;background:#fff;border:1px solid #e5eae7;border-radius:10px}.kpi-label{font-size:10px;color:#7b868d;text-transform:uppercase;letter-spacing:.05em}.kpi-value{font-size:24px;font-weight:850;margin:7px 0 2px}.kpi-note{font-size:10px;color:#7b868d}
+.change-card{border:1px solid #e3e9e6;border-radius:10px;background:#fff;margin-bottom:12px;overflow:hidden}.change-head{padding:13px 15px;display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #edf0ee}.change-body{display:grid;grid-template-columns:1fr 1fr}.policy-pane{padding:14px;background:#fcfdfd}.policy-pane+.policy-pane{border-left:1px solid #e6ebe8}.pane-label{font-size:9px;font-weight:800;letter-spacing:.08em;color:#8a959a;margin-bottom:7px}.policy-text{font-size:12px;line-height:1.65;color:#35443e}.policy-text mark{background:#fff1a8;padding:1px 3px;border-radius:3px}.change-foot{padding:11px 15px;background:#fbfcfc;border-top:1px solid #edf0ee}.legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:10px;color:#6f7c77}.legend i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}.green-dot{background:#41a87e}.red-dot{background:#d86666}.amber-dot{background:#d59b37}.blue-dot{background:#578ab6}
+@media(max-width:700px){.change-body{grid-template-columns:1fr}.policy-pane+.policy-pane{border-left:0;border-top:1px solid #e6ebe8}.kpi-strip{grid-template-columns:1fr 1fr}}
+
+/* ─── Cloud & Carbon Module Styles (Member 4 Phase 1) ─── */
+.kpi-strip-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
+@media(max-width:1300px){.kpi-strip-6{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:680px){.kpi-strip-6{grid-template-columns:1fr 1fr}}
+@media(max-width:440px){.kpi-strip-6{grid-template-columns:1fr}}
+
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:980px){.chart-grid{grid-template-columns:1fr}}
+
+.file-preview-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:#fff;border:1px solid #dfe5e2;border-radius:8px;margin-top:10px}
+.file-preview-card .file-info{display:flex;align-items:center;gap:10px}
+.file-preview-card .file-icon{width:32px;height:32px;border-radius:6px;background:#edf8f2;color:#287954;display:grid;place-items:center;font-weight:800;font-size:11px}
+
+.flow-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:1050px){.flow-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.flow-grid{grid-template-columns:1fr}}
+.flow-step{background:#fafcfb;border:1px solid #e3e9e6;border-radius:10px;padding:14px;position:relative}
+.flow-step .step-num{display:inline-block;width:20px;height:20px;border-radius:50%;background:#153f32;color:white;font-size:10px;font-weight:800;text-align:center;line-height:20px;margin-bottom:8px}
+.flow-step h3{font-size:12px;font-weight:750;margin-bottom:6px;color:#24322e}
+.flow-step p{font-size:11px;line-height:1.55;color:#67747e;margin:0}
+
+.mini-bar-wrap{display:flex;align-items:center;gap:8px}
+.mini-bar{width:60px;height:6px;background:#edf0ee;border-radius:3px;overflow:hidden}
+.mini-bar-fill{height:100%;border-radius:3px;background:#2b8c69}
+.mini-bar-fill.warn{background:#d59b37}
+.mini-bar-fill.danger{background:#d86666}
+
+.sortable-th{cursor:pointer;user-select:none;transition:background .15s}
+.sortable-th:hover{background:#f1f6f3!important;color:#18533f}
+.sort-indicator{font-size:9px;margin-left:4px;color:#879590}
+
+.sample-chip{padding:4px 9px;border:1px solid #d5dfdb;background:#fff;border-radius:6px;font-size:10px;font-weight:600;color:#455550;cursor:pointer;transition:.15s}
+.sample-chip:hover{background:#edf6f1;border-color:#2b8c69;color:#1b5644}
+
+.chart-unavailable{height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fafcfb;border:1px dashed #e1e7e4;border-radius:8px;color:#87948e;font-size:11px;text-align:center;padding:20px}
+
+/* ─── Unified Enterprise Dashboard Styles (Member 5 Phase 5D) ─── */
+.module-health-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+@media(max-width:1200px){.module-health-strip{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:768px){.module-health-strip{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.module-health-strip{grid-template-columns:1fr}}
+.module-card{background:#fff;border:1px solid #e3e9e6;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between}
+.module-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.module-card-name{font-size:11px;font-weight:800;color:#24322e}
+.module-card-badges{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.module-card-note{font-size:10px;color:#74808b;line-height:1.45;margin-top:6px}
+.dashboard-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #e4e9e6;border-radius:10px;padding:10px 14px;margin-bottom:18px;flex-wrap:wrap}
+.dashboard-filter-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dashboard-filter-group label{font-size:11px;font-weight:750;color:#5c6972}
+.badge-online{background:#edf8f2;color:#287954;border-color:#cfe7d9}
+.badge-offline{background:#fbf0f0;color:#a83d3d;border-color:#f1d1ce}
+.badge-degraded{background:#fff7e8;color:#9b6819;border-color:#f0dfbb}
+.badge-not-evaluated{background:#f1f4f6;color:#697882;border-color:#dce3e7}
+.badge-not-assessed{background:#f1f4f6;color:#697882;border-color:#dce3e7}
+.badge-no-session{background:#f5f4fa;color:#625c84;border-color:#e1def0}
+.badge-active{background:#edf8f2;color:#287954;border-color:#cfe7d9}
+.deep-dive-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+@media(max-width:1100px){.deep-dive-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:580px){.deep-dive-grid{grid-template-columns:1fr}}
+.deep-dive-card{background:#fff;border:1px solid #e4e9e6;border-radius:10px;padding:14px}
+.deep-dive-card h3{font-size:12px;font-weight:800;color:#263430;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
+.deep-dive-metric{font-size:20px;font-weight:850;color:#153f32;margin:6px 0}
+.deep-dive-desc{font-size:11px;color:#74808b;line-height:1.45;margin:0}
+
+/* ─── Platform Audit & Notification Styles (Member 5 Phase 5F) ─── */
+.notif-btn{position:relative}
+.notif-badge{position:absolute;top:-4px;right:-4px;background:#d84949;color:#fff;border-radius:10px;font-size:9px;font-weight:800;padding:1px 5px;line-height:1;min-width:14px;text-align:center;box-shadow:0 0 0 2px #fff}
+.notif-panel{position:fixed;top:66px;right:24px;width:400px;max-height:560px;background:#fff;border:1px solid #dfe5e2;border-radius:12px;box-shadow:0 12px 36px rgba(17,26,37,.14);z-index:999;display:flex;flex-direction:column;overflow:hidden}
+.notif-panel-head{padding:12px 16px;border-bottom:1px solid #edf1ef;display:flex;align-items:center;justify-content:space-between;background:#fcfdfd}
+.notif-panel-head h3{font-size:13px;font-weight:800;color:#24322e;margin:0}
+.notif-panel-body{overflow-y:auto;max-height:440px;padding:8px}
+.notif-item{padding:10px 12px;border-radius:8px;border:1px solid #edf1ef;margin-bottom:6px;transition:.15s;background:#fff;display:flex;flex-direction:column;gap:4px;position:relative}
+.notif-item.unread{background:#f6fbf9;border-color:#d4ebe0}
+.notif-item:hover{background:#f9fbfb}
+.notif-meta{display:flex;align-items:center;gap:6px;font-size:10px}
+.notif-time{font-size:10px;color:#8a969f;margin-left:auto}
+.notif-title{font-size:12px;font-weight:750;color:#24322e}
+.notif-msg{font-size:11px;color:#5a6872;line-height:1.4}
+.notif-actions{display:flex;align-items:center;gap:8px;margin-top:4px}
+.notif-actions a{font-size:11px;color:#2b8c69;font-weight:700;text-decoration:none}
+.notif-actions button{font-size:10px;padding:2px 7px;border-radius:4px;background:#edf3f0;border:1px solid #d5dfdb;cursor:pointer}
+.notif-actions button:hover{background:#dfebe5}
+.badge-critical{background:#fbeeed;color:#b23535;border-color:#f4d0ce}
+.badge-warning{background:#fdf6e9;color:#9b6d19;border-color:#f5e2bf}
+.badge-info{background:#edf4fa;color:#266ea6;border-color:#cee2f2}
+.badge-success{background:#edf8f2;color:#287954;border-color:#cfe7d9}
+
+.audit-table-wrap{background:#fff;border:1px solid #e3e9e6;border-radius:10px;overflow-x:auto;margin-top:14px}
+.audit-table{width:100%;border-collapse:collapse;font-size:11px}
+.audit-table th{background:#f9fbfa;padding:10px 12px;text-align:left;font-weight:750;color:#596761;border-bottom:1px solid #e3e9e6;white-space:nowrap}
+.audit-table td{padding:9px 12px;border-bottom:1px solid #edf1ef;color:#33423d}
+.audit-table tr:hover td{background:#fafcfb}
+.audit-json-btn{cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid #d5dfdb;background:#f8faf9;font-size:10px;font-weight:600}
+.audit-restricted{padding:36px;text-align:center;background:#fff;border:1px solid #e3e9e6;border-radius:10px;margin-top:14px}
+.audit-filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;padding:12px 14px;border:1px solid #e4e9e6;border-radius:10px;margin-bottom:14px}
+.audit-filter-bar select, .audit-filter-bar input{padding:6px 9px;border:1px solid #d5dfdb;border-radius:6px;font-size:11px}
+.immutability-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#edf8f2;border:1px solid #c8e8d8;border-radius:6px;font-size:10px;font-weight:750;color:#18533f}
+
+

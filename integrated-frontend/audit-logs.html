@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="js/auth.js"></script>
+  <title>Audit Logs — ESG Intelligence</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body data-page="audit-logs">
+  <div id="app-shell"></div>
+  <main class="page-shell">
+    <div id="topbar"></div>
+    <section class="page-content" id="page-content">
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow">SECURITY, COMPLIANCE & GOVERNANCE</div>
+          <h1>Platform Audit Trail & Security Logs</h1>
+          <p>Immutable, append-only compliance record tracking authentication events, supplier governance, policy updates, and executive reporting.</p>
+          <div style="margin-top:8px">
+            <span class="immutability-badge">🛡️ Tamper-Evident & Append-Only (ISO 27001 / SOC 2)</span>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-secondary" id="page-refresh-action"><span class="icon">↻</span> Refresh Logs</button>
+        </div>
+      </div>
+      <div id="page-app"></div>
+    </section>
+  </main>
+  <script src="js/mock-data.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/audit-logs.js"></script>
+</body>
+</html>
+
