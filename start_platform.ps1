@@ -211,7 +211,7 @@ function Start-PersistentService {
     "" | Set-Content -Path $StdoutLog -Encoding UTF8 -Force
     "" | Set-Content -Path $StderrLog -Encoding UTF8 -Force
 
-    $cmdLine = "cmd.exe /c set HF_HUB_OFFLINE=1&& set TRANSFORMERS_OFFLINE=1&& set PYTHONUNBUFFERED=1&& `"`"$PythonExe`" $Arguments 1>> `"$StdoutLog`" 2>> `"$StderrLog`"`""
+    $cmdLine = "cmd.exe /c `"`"$PythonExe`" $Arguments 1>> `"$StdoutLog`" 2>> `"$StderrLog`"`""
 
     # Attempt 1: Win32_Process.Create with CREATE_NO_WINDOW (0x08000000)
     try {
