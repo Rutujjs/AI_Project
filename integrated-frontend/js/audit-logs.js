@@ -15,7 +15,7 @@
           In compliance with SOC 2, ISO 27001, and corporate multi-tenant governance standards, access to immutable platform audit records is restricted to <b>Administrator</b> and <b>Lead Auditor</b> accounts. Your current account role (<b>${escapeHtml(currentRole.toUpperCase() || 'UNKNOWN')}</b>) does not have sufficient clearance to review audit logs.
         </p>
         <div style="margin-top:20px">
-          <a href="index.html" class="btn btn-secondary">← Return to Dashboard</a>
+          <a href="documents.html" class="btn btn-secondary">← Return to Document Intelligence</a>
         </div>
       </div>
     `;

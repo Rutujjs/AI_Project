@@ -3,25 +3,22 @@ const curRole=(sessionStorage.getItem("esg_user_role")||"admin").toLowerCase();
 const curName=sessionStorage.getItem("esg_user_name")||"Enterprise User";
 const initials=curName.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase()||"EU";
 const nav=[
- ["index.html","Dashboard","▦",""],
- ["documents.html","Document Center","▤",""],
+ ["documents.html","Document Intelligence","▤",""],
  ["policy-checker.html","Policy Checker","⌁","v2 vs v1"],
  ["suppliers.html","Suppliers","♧","120"],
  ["green-code.html","Green Code","⌘","3"],
  ["cloud-carbon.html","Cloud & Carbon","◌","3"],
- ["risks.html","ESG Risk Center","△","5"],
- ["insights.html","AI Insights","✦","5 recs"],
  ["reports.html","ESG Reports","▥",""]
 ];
-const page=document.body.dataset.page||"dashboard";
-const activeFile=page==="dashboard"?"index.html":page+".html";
+const page=document.body.dataset.page||"documents";
+const activeFile=page==="documents"?"documents.html":page+".html";
 document.getElementById("app-shell").innerHTML=`
 <aside class="app-sidebar" id="sidebar">
- <div class="brand"><div class="brand-mark">E</div><div class="brand-title">ESG Intelligence</div><div class="brand-sub">Enterprise Sustainability Platform</div></div>
- <div class="nav-label">NAVIGATION</div><nav class="side-nav">${nav.map(n=>`<a class="nav-item ${n[0]===activeFile?'active':''}" href="${n[0]}"><span class="nav-icon">${n[2]}</span><span>${n[1]}</span>${n[3]?`<span class="nav-badge ${n[1]==='ESG Risk Center'?'red':''}">${n[3]}</span>`:''}</a>`).join("")}</nav>
+ <div class="brand"><a href="documents.html" style="text-decoration:none;color:inherit"><div class="brand-mark">E</div><div class="brand-title">ESG Intelligence</div><div class="brand-sub">Enterprise Sustainability Platform</div></a></div>
+ <div class="nav-label">NAVIGATION</div><nav class="side-nav">${nav.map(n=>`<a class="nav-item ${n[0]===activeFile?'active':''}" href="${n[0]}"><span class="nav-icon">${n[2]}</span><span>${n[1]}</span>${n[3]?`<span class="nav-badge">${n[3]}</span>`:''}</a>`).join("")}</nav>
  <div class="sidebar-bottom"><div class="profile-mini"><div class="avatar">${initials}</div><div><div class="name">${curName}</div><div class="role">${curRole.toUpperCase()}</div></div></div></div>
 </aside><div class="sidebar-overlay" id="sidebar-overlay"></div>`;
-const titleMap={dashboard:"ESG Dashboard",documents:"Document Center","policy-checker":"Policy Intelligence & Checker",suppliers:"Supplier Intelligence","green-code":"Green Code","cloud-carbon":"Cloud & Carbon",risks:"ESG Risk Center",insights:"AI Insights",reports:"ESG Reports",settings:"Settings","audit-logs":"Platform Audit Logs",notifications:"Notifications & Alerts"};
+const titleMap={documents:"Document Intelligence","policy-checker":"Policy Intelligence & Checker",suppliers:"Supplier Intelligence","green-code":"Green Code","cloud-carbon":"Cloud & Carbon",reports:"ESG Reports",settings:"Settings","audit-logs":"Platform Audit Logs",notifications:"Notifications & Alerts"};
 document.getElementById("topbar").innerHTML=`
 <header class="topbar"><button class="top-icon mobile-menu" id="mobile-menu">☰</button><div class="top-title">${titleMap[page]||"ESG Intelligence"}</div>
 <div class="org-select">Acme Global Logistics Corp <span class="muted">⌄</span></div>

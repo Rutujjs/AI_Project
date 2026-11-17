@@ -18,7 +18,8 @@ from app.platform.routers.dashboard_router import router as dashboard_router
 from app.platform.routers.report_router import router as report_router
 from app.platform.routers.audit_router import router as audit_router
 from app.platform.routers.notification_router import router as notification_router
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger("platform.scheduler")
@@ -97,20 +98,29 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5500",
         "http://127.0.0.1:5500",
-        "http://localhost:5501",
-        "http://127.0.0.1:5501",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-        "http://localhost:8081",
-        "http://127.0.0.1:8081",
-        "null",  # file:// origin
     ],
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$",
+    allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
+    expose_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Ensure any unhandled internal server error still carries CORS headers."""
+    logger.exception(f"Unhandled error processing {request.method} {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "error": "Internal Server Error"},
+    )
 
 app.include_router(documents.router)
 app.include_router(green_router)

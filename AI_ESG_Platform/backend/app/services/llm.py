@@ -5,10 +5,28 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import errors as genai_errors
 
+# Load .env from backend directory as well as current working directory
+backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+backend_env = os.path.join(backend_dir, ".env")
+if os.path.exists(backend_env):
+    load_dotenv(backend_env)
 load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key)
+
+_client = None
+
+
+def get_client():
+    global _client
+    if _client is not None:
+        return _client
+    key = os.getenv("GEMINI_API_KEY") or api_key
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY environment variable is not set. Please set it in backend/.env")
+    _client = genai.Client(api_key=key)
+    return _client
+
 
 # Try these models in order until one works
 MODELS = [
@@ -24,6 +42,7 @@ def _call_with_retry(prompt: str, retries: int = 3, delay: int = 5) -> str:
     Try each model in MODELS. For each model retry up to `retries`
     times on 503 UNAVAILABLE before moving to the next model.
     """
+    client = get_client()
     last_error = None
 
     for model in MODELS:

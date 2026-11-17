@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Green Code Intelligence — ESG Platform</title>
   <meta name="description" content="Analyse GitHub pull requests for software inefficiencies that increase compute, network or CI/CD resource usage. Get transparent Green Code Scores and AI-powered recommendations.">
   <link rel="stylesheet" href="css/style.css">
@@ -23,6 +26,14 @@
     .kpi-note               { font-size:10px; color:#8a9490; margin-top:4px; }
     .change-card            { background:#fff; }
     .change-head            { padding:13px 15px; }
+
+    /* Ensure analysis history is completely suppressed */
+    #gc-history-section,
+    .gc-history-section,
+    [id*="history"],
+    [class*="history"] {
+      display: none !important;
+    }
   </style>
 </head>
 <body data-page="green-code">
@@ -45,9 +56,9 @@
   </section>
 </main>
 
-<script src="js/mock-data.js"></script>
-<script src="js/common.js"></script>
-<script src="js/api.js"></script>
-<script src="js/green-code.js"></script>
+<script src="js/mock-data.js?v=20261117_03"></script>
+<script src="js/common.js?v=20261117_03"></script>
+<script src="js/api.js?v=20261117_03"></script>
+<script src="js/green-code.js?v=20261117_03"></script>
 </body>
 </html>

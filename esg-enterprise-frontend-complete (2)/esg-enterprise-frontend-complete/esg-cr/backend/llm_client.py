@@ -1,10 +1,8 @@
 """Server-side LLM client for structured commitment extraction and comparison.
 
 Supported providers (set LLM_PROVIDER in .env):
-  openai  — OpenAI API (default)
-  gemini  — Google Gemini via the officially supported OpenAI-compatible endpoint
-             https://generativelanguage.googleapis.com/v1beta/openai/
-             No additional SDK is required; the existing openai package is reused.
+  gemini  — Google Gemini via google.genai SDK
+  openai  — OpenAI API via openai SDK
 """
 
 from __future__ import annotations
@@ -12,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -21,11 +20,12 @@ logger = logging.getLogger(__name__)
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_DIR.parent
 
+# Load .env files from both project root and backend dir
 load_dotenv(PROJECT_ROOT / ".env")
 load_dotenv(BACKEND_DIR / ".env")
 
 # ---------------------------------------------------------------------------
-# Prompts — unchanged from Step 2/3; provider-agnostic plain text
+# Prompts
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """You extract explicit ESG policy commitments from a document chunk.
@@ -108,25 +108,25 @@ class LLMClientError(Exception):
 # Provider configuration
 # ---------------------------------------------------------------------------
 
-# Gemini's officially documented OpenAI-compatible base URL.
-# Source: https://ai.google.dev/gemini-api/docs/openai
-_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-
 _VALID_PROVIDERS = {"openai", "gemini"}
 
 
-def get_llm_settings() -> tuple[str, str, str | None]:
-    """Return (api_key, model, base_url).
-
-    base_url is None for OpenAI (uses the SDK default).
-    base_url is the Gemini compat endpoint for Gemini.
+def get_llm_settings() -> tuple[str, str, str]:
+    """Return (provider, api_key, model).
 
     Reads from environment:
-      LLM_PROVIDER   — "openai" (default) or "gemini"
-      OPENAI_API_KEY / OPENAI_MODEL
+      LLM_PROVIDER   — "gemini" (default if GEMINI_API_KEY set) or "openai"
       GEMINI_API_KEY / GEMINI_MODEL
+      OPENAI_API_KEY / OPENAI_MODEL
     """
-    provider = (os.getenv("LLM_PROVIDER") or "openai").strip().lower()
+    provider = (os.getenv("LLM_PROVIDER") or "").strip().lower()
+    if not provider:
+        if os.getenv("GEMINI_API_KEY"):
+            provider = "gemini"
+        elif os.getenv("OPENAI_API_KEY"):
+            provider = "openai"
+        else:
+            provider = "gemini"
 
     if provider not in _VALID_PROVIDERS:
         raise LLMClientError(
@@ -137,11 +137,10 @@ def get_llm_settings() -> tuple[str, str, str | None]:
         api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
         if not api_key:
             raise LLMClientError(
-                "GEMINI_API_KEY is missing. Add it to the .env file in the project root. "
-                "Get a free key at https://aistudio.google.com/apikey"
+                "GEMINI_API_KEY is missing. Add it to the .env file in the project root."
             )
         model = (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
-        return api_key, model, _GEMINI_BASE_URL
+        return "gemini", api_key, model
 
     # Default: openai
     api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
@@ -150,7 +149,7 @@ def get_llm_settings() -> tuple[str, str, str | None]:
             "OPENAI_API_KEY is missing. Add it to a .env file in the project root."
         )
     model = (os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
-    return api_key, model, None
+    return "openai", api_key, model
 
 
 # ---------------------------------------------------------------------------
@@ -160,54 +159,102 @@ def get_llm_settings() -> tuple[str, str, str | None]:
 def _is_quota_error(message: str) -> bool:
     """Detect rate-limit / quota errors from either provider."""
     lower = message.lower()
-    # OpenAI quota strings
     if "429" in lower or "insufficient_quota" in lower or "credit_balance" in lower:
         return True
-    # Gemini quota strings (RESOURCE_EXHAUSTED maps to HTTP 429 on the compat layer)
     if "resource_exhausted" in lower or "quota" in lower:
         return True
     return False
 
 
+def _clean_json_text(text: str) -> str:
+    """Strip markdown code fence blocks if returned by the LLM."""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines and lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+    return cleaned
+
+
 def _chat_json(messages: list[dict]) -> dict:
     """Send a chat request and return a parsed JSON dict.
 
-    Uses whichever provider is configured in .env.
+    Uses whichever provider is configured in .env (gemini or openai).
     Raises LLMClientError for API errors, quota issues, or bad JSON.
-    Never returns fabricated data on error.
     """
-    api_key, model, base_url = get_llm_settings()
+    provider, api_key, model = get_llm_settings()
 
+    content = ""
     try:
-        # base_url=None → OpenAI SDK uses its own default endpoint (unchanged behaviour).
-        # base_url=_GEMINI_BASE_URL → routes the same call to Gemini's compat layer.
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key, base_url=base_url)
-        response = client.chat.completions.create(
-            model=model,
-            temperature=0,
-            response_format={"type": "json_object"},
-            messages=messages,
-        )
-        content = response.choices[0].message.content or ""
+        if provider == "gemini":
+            try:
+                from google import genai
+                from google.genai import types
+            except ImportError as err:
+                raise LLMClientError(
+                    "google-genai package is not installed. Run: pip install google-genai"
+                ) from err
+
+            client = genai.Client(api_key=api_key)
+
+            # Separate system prompt and user prompt
+            system_parts = [m["content"] for m in messages if m.get("role") == "system"]
+            user_parts = [m["content"] for m in messages if m.get("role") == "user"]
+            system_instruction = "\n\n".join(system_parts) if system_parts else None
+            user_prompt = "\n\n".join(user_parts)
+
+            config = None
+            if hasattr(types, "GenerateContentConfig"):
+                config = types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json",
+                    temperature=0.0,
+                )
+
+            response = client.models.generate_content(
+                model=model,
+                contents=user_prompt,
+                config=config,
+            )
+            content = response.text or ""
+
+        elif provider == "openai":
+            try:
+                from openai import OpenAI
+            except ImportError as err:
+                raise LLMClientError(
+                    "openai package is not installed. Run: pip install openai"
+                ) from err
+
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model=model,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=messages,
+            )
+            content = response.choices[0].message.content or ""
+
     except LLMClientError:
         raise
     except Exception as exc:
         message = str(exc)
         if _is_quota_error(message):
-            provider = (os.getenv("LLM_PROVIDER") or "openai").strip().lower()
             raise LLMClientError(
                 f"The {provider} API has no remaining quota or credits. "
-                "Comparison used deterministic rules where possible. "
                 "Add billing credits or switch LLM_PROVIDER in .env."
             ) from exc
         raise LLMClientError(f"The LLM API request failed: {exc}") from exc
 
+    content = _clean_json_text(content)
     try:
         payload = json.loads(content)
     except json.JSONDecodeError as exc:
         raise LLMClientError(
-            f"The LLM returned invalid JSON (provider={os.getenv('LLM_PROVIDER', 'openai')}). "
+            f"The LLM returned invalid JSON (provider={provider}). "
             "Raw content was discarded to avoid fabricated data."
         ) from exc
 
@@ -218,13 +265,11 @@ def _chat_json(messages: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Public API — interfaces unchanged; called by commitment_extractor and
-# policy_comparator exactly as before
+# Public API
 # ---------------------------------------------------------------------------
 
 def extract_commitments_from_chunk(chunk: dict) -> list[dict]:
     """Send one page-aware chunk to the configured LLM and return parsed commitment dicts."""
-    api_key, model, base_url = get_llm_settings()
     page_numbers = chunk.get("page_numbers", [])
     text = chunk.get("text", "")
 
@@ -234,41 +279,10 @@ def extract_commitments_from_chunk(chunk: dict) -> list[dict]:
         f"{text}"
     )
 
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key, base_url=base_url)
-        response = client.chat.completions.create(
-            model=model,
-            temperature=0,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        content = response.choices[0].message.content or ""
-    except LLMClientError:
-        raise
-    except Exception as exc:
-        message = str(exc)
-        if _is_quota_error(message):
-            provider = (os.getenv("LLM_PROVIDER") or "openai").strip().lower()
-            raise LLMClientError(
-                f"The {provider} API has no remaining quota or credits. "
-                "This app does not need an LLM for structured COMMITMENT ID registers. "
-                "For narrative PDFs, ensure your API key has available quota."
-            ) from exc
-        raise LLMClientError(f"The LLM API request failed: {exc}") from exc
-
-    try:
-        payload = json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise LLMClientError(
-            "The LLM returned invalid JSON. Raw content was discarded to avoid fabricated data."
-        ) from exc
-
-    if not isinstance(payload, dict):
-        raise LLMClientError("The LLM returned invalid structured output.")
+    payload = _chat_json([
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ])
 
     commitments = payload.get("commitments", [])
     if commitments is None:

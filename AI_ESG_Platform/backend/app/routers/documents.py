@@ -18,10 +18,13 @@ from app.services.esg_extractor import (
     extract_esg_commitments_batch
 )
 
+import logging
 import os
 import uuid
 import shutil
 import json
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
@@ -68,82 +71,95 @@ os.makedirs(
 async def upload_document(
     file: UploadFile = File(...)
 ):
+    try:
+        # 1. Check file type (by MIME type or filename extension)
+        is_pdf = (
+            (file.content_type and file.content_type in ["application/pdf", "application/x-pdf"]) or
+            (file.filename and file.filename.lower().endswith(".pdf"))
+        )
+        if not is_pdf:
+            raise HTTPException(
+                status_code=400,
+                detail="Only PDF files are allowed."
+            )
 
-    # 1. Check file type
-    if file.content_type != "application/pdf":
+        # 2. Generate unique document ID
+        unique_id = str(uuid.uuid4())
+        original_filename = file.filename or "uploaded_document.pdf"
 
+        # 3. Create file path
+        file_path = os.path.join(
+            UPLOAD_FOLDER,
+            f"{unique_id}_{original_filename}"
+        )
+
+        # 4. Save uploaded PDF
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(
+                file.file,
+                buffer
+            )
+
+        # 5. Extract text from PDF
+        pages = extract_text_from_pdf(
+            file_path
+        )
+
+        if not pages:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not extract any text from the PDF. The file may be empty or image-only."
+            )
+
+        # 6. Create meaningful chunks
+        chunks = chunk_text(
+            pages,
+            document_id=unique_id,
+            filename=original_filename
+        )
+
+        if not chunks:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not generate text chunks from the document."
+            )
+
+        # 7. Generate embeddings
+        texts = [
+            chunk["text"]
+            for chunk in chunks
+        ]
+
+        embeddings = generate_embeddings(
+            texts
+        )
+
+        # 8. Store chunks and embeddings in vector store
+        stored_count = store_chunks(
+            chunks,
+            embeddings
+        )
+
+        # 9. Return upload result
+        return {
+            "message": (
+                "Document uploaded, text extracted, "
+                "chunked and embedded successfully"
+            ),
+            "document_id": unique_id,
+            "filename": original_filename,
+            "chunks_created": len(chunks),
+            "chunks_stored": stored_count
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unhandled error in upload_document: {e}")
         raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are allowed."
+            status_code=500,
+            detail=f"Upload processing failed: {str(e)}"
         )
-
-    # 2. Generate unique document ID
-    unique_id = str(uuid.uuid4())
-
-    original_filename = file.filename
-
-    # 3. Create file path
-    file_path = os.path.join(
-        UPLOAD_FOLDER,
-        f"{unique_id}_{original_filename}"
-    )
-
-    # 4. Save uploaded PDF
-    with open(file_path, "wb") as buffer:
-
-        shutil.copyfileobj(
-            file.file,
-            buffer
-        )
-
-    # 5. Extract text from PDF
-    pages = extract_text_from_pdf(
-        file_path
-    )
-
-    # 6. Create meaningful chunks
-    chunks = chunk_text(
-        pages,
-        document_id=unique_id,
-        filename=original_filename
-    )
-
-    # 7. Generate embeddings
-    texts = [
-        chunk["text"]
-        for chunk in chunks
-    ]
-
-    embeddings = generate_embeddings(
-        texts
-    )
-
-    # 8. Store chunks and embeddings in ChromaDB
-    #
-    # IMPORTANT:
-    # No Gemini call happens during upload.
-
-    stored_count = store_chunks(
-        chunks,
-        embeddings
-    )
-
-    # 9. Return upload result
-    return {
-
-        "message": (
-            "Document uploaded, text extracted, "
-            "chunked and embedded successfully"
-        ),
-
-        "document_id": unique_id,
-
-        "filename": original_filename,
-
-        "chunks_created": len(chunks),
-
-        "chunks_stored": stored_count
-    }
 
 
 # --------------------------------------------------
@@ -154,120 +170,125 @@ async def upload_document(
 async def analyze_esg_document(
     request: ESGAnalysisRequest
 ):
+    try:
+        # --------------------------------------------------
+        # 1. Find all chunks belonging to this document
+        # --------------------------------------------------
 
-    # --------------------------------------------------
-    # 1. Find all chunks belonging to this document
-    # --------------------------------------------------
-
-    results = collection.get(
-        where={
-            "document_id": request.document_id
-        }
-    )
-
-    # --------------------------------------------------
-    # 2. Check whether document exists
-    # --------------------------------------------------
-
-    if not results["ids"]:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Document not found."
+        results = collection.get(
+            where={
+                "document_id": request.document_id
+            }
         )
 
-    # --------------------------------------------------
-    # 3. Prepare chunks for batch ESG analysis
-    # --------------------------------------------------
+        # --------------------------------------------------
+        # 2. Check whether document exists
+        # --------------------------------------------------
 
-    chunks = []
+        if not results["ids"]:
 
-    for i in range(
-        len(results["ids"])
-    ):
-
-        chunks.append({
-
-            "chunk_id": results["ids"][i],
-
-            "text": results["documents"][i]
-
-        })
-
-    # --------------------------------------------------
-    # 4. Send ALL chunks to batch ESG extractor
-    #
-    # IMPORTANT:
-    # The batch extractor makes ONE Gemini request.
-    # --------------------------------------------------
-
-    analysis_result = extract_esg_commitments_batch(
-        chunks
-    )
-
-    # --------------------------------------------------
-    # 5. Check whether Gemini returned an error
-    # --------------------------------------------------
-
-    if "error" in analysis_result:
-
-        raise HTTPException(
-            status_code=500,
-            detail=analysis_result
-        )
-
-    # --------------------------------------------------
-    # 6. Create chunk_id → ESG analysis mapping
-    # --------------------------------------------------
-
-    esg_analysis_map = {}
-
-    for chunk_result in analysis_result.get(
-        "chunks",
-        []
-    ):
-
-        chunk_id = chunk_result.get(
-            "chunk_id"
-        )
-
-        if not chunk_id:
-            continue
-
-        esg_analysis_map[chunk_id] = {
-
-            "commitments": chunk_result.get(
-                "commitments",
-                []
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found."
             )
 
+        # --------------------------------------------------
+        # 3. Prepare chunks for batch ESG analysis
+        # --------------------------------------------------
+
+        chunks = []
+
+        for i in range(
+            len(results["ids"])
+        ):
+
+            chunks.append({
+
+                "chunk_id": results["ids"][i],
+
+                "text": results["documents"][i]
+
+            })
+
+        # --------------------------------------------------
+        # 4. Send ALL chunks to batch ESG extractor
+        #
+        # IMPORTANT:
+        # The batch extractor makes ONE Gemini request.
+        # --------------------------------------------------
+
+        analysis_result = extract_esg_commitments_batch(
+            chunks
+        )
+
+        # --------------------------------------------------
+        # 5. Check whether Gemini returned an error
+        # --------------------------------------------------
+
+        if "error" in analysis_result:
+
+            raise HTTPException(
+                status_code=500,
+                detail=analysis_result
+            )
+
+        # --------------------------------------------------
+        # 6. Create chunk_id → ESG analysis mapping
+        # --------------------------------------------------
+
+        esg_analysis_map = {}
+
+        for chunk_result in analysis_result.get(
+            "chunks",
+            []
+        ):
+
+            chunk_id = chunk_result.get(
+                "chunk_id"
+            )
+
+            if not chunk_id:
+                continue
+
+            esg_analysis_map[chunk_id] = {
+
+                "commitments": chunk_result.get(
+                    "commitments",
+                    []
+                )
+
+            }
+
+        # --------------------------------------------------
+        # 7. Store ESG analysis in ChromaDB
+        # --------------------------------------------------
+
+        updated_count = update_esg_analysis(
+            esg_analysis_map
+        )
+
+        # --------------------------------------------------
+        # 8. Return analysis result
+        # --------------------------------------------------
+
+        return {
+
+            "message": (
+                "ESG analysis completed successfully"
+            ),
+
+            "document_id": request.document_id,
+
+            "chunks_analyzed": len(chunks),
+
+            "chunks_updated": updated_count
+
         }
-
-    # --------------------------------------------------
-    # 7. Store ESG analysis in ChromaDB
-    # --------------------------------------------------
-
-    updated_count = update_esg_analysis(
-        esg_analysis_map
-    )
-
-    # --------------------------------------------------
-    # 8. Return analysis result
-    # --------------------------------------------------
-
-    return {
-
-        "message": (
-            "ESG analysis completed successfully"
-        ),
-
-        "document_id": request.document_id,
-
-        "chunks_analyzed": len(chunks),
-
-        "chunks_updated": updated_count
-
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unhandled error in analyze_esg_document: {e}")
+        raise HTTPException(status_code=500, detail=f"ESG analysis failed: {str(e)}")
 
 
 # --------------------------------------------------
@@ -278,30 +299,35 @@ async def analyze_esg_document(
 async def search_documents(
     request: SearchRequest
 ):
+    try:
+        # 1. Convert user's question
+        #    into an embedding
 
-    # 1. Convert user's question
-    #    into an embedding
+        query_embedding = generate_embeddings(
+            [request.query]
+        )[0]
 
-    query_embedding = generate_embeddings(
-        [request.query]
-    )[0]
+        # 2. Search ChromaDB
 
-    # 2. Search ChromaDB
+        results = search_chunks(
+            query_embedding,
+            request.n_results
+        )
 
-    results = search_chunks(
-        query_embedding,
-        request.n_results
-    )
+        # 3. Return search results
 
-    # 3. Return search results
+        return {
 
-    return {
+            "query": request.query,
 
-        "query": request.query,
+            "results": results
 
-        "results": results
-
-    }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unhandled error in search_documents: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 # --------------------------------------------------
@@ -312,126 +338,131 @@ async def search_documents(
 async def ask_document(
     request: AskRequest
 ):
-
-    # --------------------------------------------------
-    # 1. Convert user's question into an embedding
-    # --------------------------------------------------
-
-    query_embedding = generate_embeddings(
-        [request.query]
-    )[0]
-
-    # --------------------------------------------------
-    # 2. Retrieve relevant chunks from ChromaDB
-    # --------------------------------------------------
-
-    results = search_chunks(
-        query_embedding,
-        request.n_results
-    )
-
-    # --------------------------------------------------
-    # 3. Extract retrieved documents
-    # --------------------------------------------------
-
-    retrieved_documents = results["documents"][0]
-
-    # --------------------------------------------------
-    # 4. Combine retrieved chunks into context
-    # --------------------------------------------------
-
-    context = "\n\n---\n\n".join(
-        retrieved_documents
-    )
-
-    # --------------------------------------------------
-    # 5. Send question + context to Gemini
-    # --------------------------------------------------
-
-    answer = generate_answer(
-        request.query,
-        context
-    )
-
-    # --------------------------------------------------
-    # 6. Build source information
-    # --------------------------------------------------
-
-    sources = []
-
-    for i in range(
-        len(retrieved_documents)
-    ):
-
-        metadata = results["metadatas"][0][i]
-
+    try:
         # --------------------------------------------------
-        # Retrieve ESG analysis stored in ChromaDB
+        # 1. Convert user's question into an embedding
         # --------------------------------------------------
 
-        esg_analysis_raw = metadata.get(
-            "esg_analysis"
+        query_embedding = generate_embeddings(
+            [request.query]
+        )[0]
+
+        # --------------------------------------------------
+        # 2. Retrieve relevant chunks from ChromaDB
+        # --------------------------------------------------
+
+        results = search_chunks(
+            query_embedding,
+            request.n_results
         )
 
-        # ChromaDB stores ESG analysis
-        # as a JSON string.
+        # --------------------------------------------------
+        # 3. Extract retrieved documents
+        # --------------------------------------------------
 
-        if esg_analysis_raw:
+        retrieved_documents = results["documents"][0]
 
-            try:
+        # --------------------------------------------------
+        # 4. Combine retrieved chunks into context
+        # --------------------------------------------------
 
-                esg_analysis = json.loads(
-                    esg_analysis_raw
-                )
+        context = "\n\n---\n\n".join(
+            retrieved_documents
+        )
 
-            except json.JSONDecodeError:
+        # --------------------------------------------------
+        # 5. Send question + context to Gemini
+        # --------------------------------------------------
+
+        answer = generate_answer(
+            request.query,
+            context
+        )
+
+        # --------------------------------------------------
+        # 6. Build source information
+        # --------------------------------------------------
+
+        sources = []
+
+        for i in range(
+            len(retrieved_documents)
+        ):
+
+            metadata = results["metadatas"][0][i]
+
+            # --------------------------------------------------
+            # Retrieve ESG analysis stored in ChromaDB
+            # --------------------------------------------------
+
+            esg_analysis_raw = metadata.get(
+                "esg_analysis"
+            )
+
+            # ChromaDB stores ESG analysis
+            # as a JSON string.
+
+            if esg_analysis_raw:
+
+                try:
+
+                    esg_analysis = json.loads(
+                        esg_analysis_raw
+                    )
+
+                except json.JSONDecodeError:
+
+                    esg_analysis = {
+                        "error": (
+                            "Stored ESG analysis "
+                            "is invalid JSON"
+                        )
+                    }
+
+            else:
 
                 esg_analysis = {
-                    "error": (
-                        "Stored ESG analysis "
-                        "is invalid JSON"
-                    )
+                    "commitments": []
                 }
 
-        else:
+            # --------------------------------------------------
+            # Add source + context + ESG analysis
+            # --------------------------------------------------
 
-            esg_analysis = {
-                "commitments": []
-            }
+            sources.append({
+
+                # Original document
+                "filename": metadata["filename"],
+
+                # PDF page
+                "page": metadata["page"],
+
+                # Full retrieved chunk
+                "content": retrieved_documents[i],
+
+                # ChromaDB similarity distance
+                "distance": results["distances"][0][i],
+
+                # ESG analysis
+                "esg_analysis": esg_analysis
+
+            })
 
         # --------------------------------------------------
-        # Add source + context + ESG analysis
+        # 7. Return final response
         # --------------------------------------------------
 
-        sources.append({
+        return {
 
-            # Original document
-            "filename": metadata["filename"],
+            "question": request.query,
 
-            # PDF page
-            "page": metadata["page"],
+            "answer": answer,
 
-            # Full retrieved chunk
-            "content": retrieved_documents[i],
+            "sources": sources
 
-            # ChromaDB similarity distance
-            "distance": results["distances"][0][i],
-
-            # ESG analysis
-            "esg_analysis": esg_analysis
-
-        })
-
-    # --------------------------------------------------
-    # 7. Return final response
-    # --------------------------------------------------
-
-    return {
-
-        "question": request.query,
-
-        "answer": answer,
-
-        "sources": sources
-
-    }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unhandled error in ask_document: {e}")
+        raise HTTPException(status_code=500, detail=f"Ask document failed: {str(e)}")

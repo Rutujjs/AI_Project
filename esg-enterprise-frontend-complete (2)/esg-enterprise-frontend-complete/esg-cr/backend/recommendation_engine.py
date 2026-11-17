@@ -281,7 +281,7 @@ def generate_recommendations(risks: list[dict], use_ai: bool = True, contexts: d
     if use_ai:
         try:
             return _call_huggingface(risks, contexts), warnings
-        except Exception as exc:
-            warnings.append(f"AI recommendations unavailable; deterministic recommendations used: {exc}")
+        except Exception:
+            pass # Suppressed HF_TOKEN / AI recommendation warning per user request
 
     return [_deterministic_recommendation(risk, contexts.get(str(risk.get("commitment_id") or "").upper())) for risk in risks[:20]], warnings

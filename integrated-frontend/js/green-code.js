@@ -211,13 +211,13 @@
       <div id="gc-repos-section" style="${S.selectedAccount ? "" : "display:none"}"></div>
       <div id="gc-prs-section" style="${S.selectedRepo ? "" : "display:none"}"></div>
       <div id="gc-analysis-section"></div>
-      <div id="gc-history-section"></div>
     `;
     renderAccounts();
     if (S.selectedAccount) renderRepos();
     if (S.selectedRepo) renderPRs();
     renderAnalysis();
-    renderHistory();
+    const histEl = document.getElementById("gc-history-section");
+    if (histEl) histEl.remove();
   }
 
   /* ─── Accounts section ───────────────────────────────────────────────────── */
@@ -690,68 +690,11 @@
       .join("");
   }
 
-  /* ─── History section ────────────────────────────────────────────────────── */
+  /* ─── History section (disabled) ─────────────────────────────────────────── */
 
   function renderHistory() {
     const el = document.getElementById("gc-history-section");
-    if (!el) return;
-    if (!S.scores || S.scores.length === 0) {
-      el.innerHTML = "";
-      return;
-    }
-
-    el.innerHTML = `
-      <div class="card" style="margin-bottom:14px">
-        <div class="section-head">
-          <div><h2>Analysis History</h2><p>Previously analysed pull requests with their Green Code Scores.</p></div>
-          <button class="btn btn-ghost" id="gc-refresh-history" style="font-size:11px">↻ Refresh</button>
-        </div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr><th>PR</th><th>Title</th><th>Repository</th><th>Score</th><th>Findings</th><th>High</th><th>Analysed</th><th></th></tr>
-            </thead>
-            <tbody>
-              ${S.scores
-                .map(
-                  (s) => `
-                <tr>
-                  <td style="font-weight:700;color:#2b8c69">#${esc(String(s.pr_number))}</td>
-                  <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.title || "—")}</td>
-                  <td class="muted">${esc(s.repository || "—")}</td>
-                  <td>
-                    <span style="font-weight:800;color:${scoreColor(s.overall_score)};background:${scoreBg(s.overall_score)};padding:3px 8px;border-radius:6px;font-size:11px">
-                      ${Math.round(s.overall_score)}/100
-                    </span>
-                  </td>
-                  <td style="text-align:center">${esc(String(s.finding_count || 0))}</td>
-                  <td style="text-align:center;color:#c84a3a;font-weight:700">${esc(String(s.high_priority_count || 0))}</td>
-                  <td class="muted" style="font-size:10px">${s.analyzed_at ? new Date(s.analyzed_at).toLocaleString() : "—"}</td>
-                  <td>
-                    <button class="btn btn-ghost gc-view-history" data-pr-id="${s.pull_request_id}" style="font-size:10px;padding:5px 9px">View →</button>
-                  </td>
-                </tr>`
-                )
-                .join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>`;
-
-    el.querySelector("#gc-refresh-history")?.addEventListener("click", loadHistory);
-    el.querySelectorAll(".gc-view-history").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const prId = parseInt(btn.dataset.prId);
-        try {
-          const res = await GreenAPI.getResults(prId);
-          S.analysisResult = res;
-          S.selectedPr = { id: prId, pr_number: res.pr_number, title: res.title };
-          render();
-        } catch (err) {
-          toast("Could not load results: " + err.message);
-        }
-      });
-    });
+    if (el) el.remove();
   }
 
   /* ─── Connect modal ──────────────────────────────────────────────────────── */

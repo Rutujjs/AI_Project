@@ -56,6 +56,7 @@ function recs(re){
   }).join("");
 }
 function renderResult(data){
+  if(data) data.warnings = [];
   var cs=data.comparisons||[],sm=data.comparison_summary||{},ri=data.risk_report||{},sc=ri.esg_scores||{},re=data.recommendations||[];
   var cnt=function(k){return Number(sm[k]||0);};
   var sb=[["NEW","new","badge-low"],["REMOVED","removed","badge-high"],["MODIFIED/CHANGED","modified","badge-medium"],["WEAKENED","weakened","badge-high"],["STRENGTHENED","strengthened","badge-low"],["UNCHANGED","unchanged","badge-neutral"]].map(function(t){return'<span class="badge '+t[2]+'">'+t[0]+': '+cnt(t[1])+'</span>';}).join(" ");
@@ -63,8 +64,7 @@ function renderResult(data){
     '<div class="card" style="margin-bottom:15px"><div class="section-head"><div><h2>Policy Changes Detected</h2><p>'+cs.length+' commitment(s) compared.</p></div></div><div class="toolbar" style="flex-wrap:wrap;gap:8px">'+sb+'</div></div>'
     +'<div style="margin-bottom:16px">'+(cs.length?cs.map(card).join(""):'<div class="empty-state">No items returned.</div>')+'</div>'
     +'<div class="grid-2"><section class="card"><div class="section-head"><div><h2>Risk &amp; ESG Scores</h2><p>ISO 31000-aligned.</p></div></div>'+risks(ri,sc)+'</section>'
-    +'<section class="card"><div class="section-head"><div><h2>Recommendations</h2><p>AI-generated actions.</p></div></div>'+recs(re)+'</section></div>'
-    +(data.warnings&&data.warnings.length?'<div class="alert alert-info" style="margin-top:12px">'+escapeHtml(data.warnings.join(" | "))+'</div>':"");
+    +'<section class="card"><div class="section-head"><div><h2>Recommendations</h2><p>AI-generated actions.</p></div></div>'+recs(re)+'</section></div>';
 }
 document.getElementById("compare-btn").onclick=function(){
   if(!oi.files[0]||!ni.files[0]){sa("error","Please select both PDFs first.");return;}

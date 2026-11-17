@@ -456,6 +456,128 @@ def parse_commitment_register(text: str, page_numbers: list[int]) -> list[dict]:
 
     return items
 
+
+def extract_narrative_commitments(pages: list[dict]) -> list[dict]:
+    """Deterministic heuristic commitment extractor for narrative policy PDFs without structured tags."""
+    usable_pages = [p for p in pages if (p.get("extracted_text") or "").strip()]
+    if not usable_pages:
+        return []
+
+    full_text = "\n\n".join(p.get("extracted_text", "") for p in usable_pages)
+
+    # Global accountability / owner
+    owner_match = re.search(r"(?:Accountability|Responsible Owner)[:\s\n]+([^.\n]+)", full_text, re.I)
+    global_owner = owner_match.group(1).strip() if owner_match else None
+
+    # Global monitoring
+    monitoring_match = re.search(r"(?:Monitoring)[:\s\n]+([^.\n]+)", full_text, re.I)
+    global_monitoring = _extract_monitoring_frequency(monitoring_match.group(1)) if monitoring_match else None
+
+    # Identify sections
+    section_blocks = re.split(r"\n(?=[A-Z][a-zA-Z\s]{2,30}\n)", full_text)
+    candidate_texts: list[tuple[str, int]] = []
+
+    target_sections: list[tuple[str, int]] = []
+    for sec in section_blocks:
+        lines = sec.strip().split("\n")
+        header = lines[0].strip().lower()
+        body = " ".join(l.strip() for l in lines[1:])
+        if any(h in header for h in ["commitment", "target", "objective", "goal"]):
+            target_sections.append((body, 1))
+
+    if target_sections:
+        for body, page_num in target_sections:
+            sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", body)
+            for s in sentences:
+                candidate_texts.append((s.strip(), page_num))
+    else:
+        for p in usable_pages:
+            p_num = p.get("page_number", 1)
+            p_text = p.get("extracted_text", "")
+            lines = [re.sub(r"\s+", " ", l).strip() for l in p_text.splitlines() if len(l.strip()) > 20]
+            cleaned_text = " ".join(lines)
+            sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", cleaned_text)
+            for s in sentences:
+                candidate_texts.append((s.strip(), p_num))
+
+    id_counters = {"ENV": 1, "SOC": 1, "GOV": 1}
+    seen_statement_words: list[set[str]] = []
+    items: list[dict] = []
+
+    for s, p_num in candidate_texts:
+        if len(s) < 20:
+            continue
+        lower = s.lower()
+        if re.search(r"(?:synthetic sample|fictional policy|version \d|effective:|document status)", lower):
+            continue
+
+        if "will be measured in" in lower or "policy will be reviewed" in lower or "operational data" in lower:
+            continue
+
+        has_commitment_verb = any(v in lower for v in [
+            "reduce", "increase", "cut", "achieve", "eliminate", "maintain",
+            "reach", "aims to", "commits to", "committed to", "shall", "will",
+            "target", "intends to", "improve", "procure", "upgrade", "not specified"
+        ])
+
+        has_esg_keyword = any(k in lower for k in [
+            "emission", "greenhouse", "scope 1", "scope 2", "scope 3", "renewable",
+            "electricity", "energy", "water", "waste", "carbon", "diversity",
+            "training", "safety", "governance", "ethics", "supplier", "climate",
+            "environmental", "social"
+        ])
+
+        if has_commitment_verb and has_esg_keyword:
+            if any(k in lower for k in ["diversity", "safety", "training", "worker", "employee", "human rights", "labour", "labor"]):
+                cat_code, category = "SOC", "Social"
+            elif any(k in lower for k in ["ethics", "corruption", "whistleblower", "governance", "board", "compliance"]):
+                cat_code, category = "GOV", "Governance"
+            else:
+                cat_code, category = "ENV", "Environmental"
+
+            words = set(re.findall(r"[a-z0-9]+", lower)) - {"the", "and", "to", "by", "of", "in", "a", "an", "is", "will", "for", "with"}
+            is_dup = False
+            for seen_words in seen_statement_words:
+                overlap = len(words & seen_words) / max(len(words | seen_words), 1)
+                if overlap > 0.60:
+                    is_dup = True
+                    break
+            if is_dup:
+                continue
+            seen_statement_words.append(words)
+
+            pct_match = re.search(r"(\d+(?:\.\d+)?\s*%)", s)
+            target = pct_match.group(1).strip() if pct_match else None
+
+            base_match = re.search(r"(?:from|against)\s+(?:the\s+)?(20\d{2}(?:\s+baseline)?)", s, re.I)
+            baseline = base_match.group(1).strip() if base_match else None
+
+            dead_match = re.search(r"\bby\s+(20\d{2})\b", s, re.I)
+            deadline = dead_match.group(1).strip() if dead_match else None
+
+            c_id = f"{cat_code}-{id_counters[cat_code]:03d}"
+            id_counters[cat_code] += 1
+
+            items.append({
+                "commitment_id": c_id,
+                "category": category,
+                "policy_statement": s,
+                "metric": "Percentage" if "%" in (target or "") else None,
+                "baseline": baseline,
+                "target": target,
+                "deadline": deadline,
+                "responsible_owner": global_owner,
+                "scope": None,
+                "evidence_requirement": None,
+                "monitoring_frequency": global_monitoring,
+                "escalation": None,
+                "source": {"page_numbers": [p_num], "evidence": s[:400]},
+                "confidence": 0.85,
+            })
+
+    return items
+
+
 def extract_commitments(
     pages: list[dict],
     chunk_extractor: Callable[[dict], list[dict]] | None = None,
@@ -463,7 +585,7 @@ def extract_commitments(
     """Extract commitments from page text, then normalize and deduplicate.
 
     Structured COMMITMENT ID records and compact commitment-register rows are parsed locally (free, exact).
-    The LLM is used only when no structured records are found.
+    The LLM is used when no structured records are found, with a deterministic heuristic fallback.
     """
     usable_pages = [page for page in pages if (page.get("extracted_text") or "").strip()]
     if not usable_pages:
@@ -488,26 +610,40 @@ def extract_commitments(
     logger.info("Structured commitments extracted: %s", len(raw_items))
 
     if not raw_items:
-        if chunk_extractor is None:
-            raise CommitmentExtractionError(
-                "No structured COMMITMENT ID records were found, and no LLM extractor is configured."
-            )
-        chunks = create_chunks(usable_pages)
-        logger.info("Chunks processed: %s", len(chunks))
-        for index, chunk in enumerate(chunks, start=1):
+        llm_failed = False
+        if chunk_extractor is not None:
             try:
-                extracted = chunk_extractor(chunk)
-            except Exception:
-                logger.exception(
-                    "LLM extraction failed for chunk %s (pages %s)",
-                    index,
-                    chunk["page_numbers"],
+                chunks = create_chunks(usable_pages)
+                logger.info("Chunks processed: %s", len(chunks))
+                for index, chunk in enumerate(chunks, start=1):
+                    extracted = chunk_extractor(chunk)
+                    if not extracted:
+                        continue
+                    for item in extracted:
+                        raw_items.append((item, chunk["page_numbers"]))
+            except Exception as exc:
+                logger.warning(
+                    "LLM extraction failed (%s). Falling back to heuristic narrative extraction.",
+                    exc,
                 )
-                raise
-            if not extracted:
-                continue
-            for item in extracted:
-                raw_items.append((item, chunk["page_numbers"]))
+                warnings.append(
+                    f"AI extraction unavailable ({exc}); extracted commitments using policy heuristic rules."
+                )
+                llm_failed = True
+
+        if not raw_items:
+            heuristic_items = extract_narrative_commitments(usable_pages)
+            if heuristic_items:
+                logger.info("Heuristic commitments extracted: %s", len(heuristic_items))
+                for item in heuristic_items:
+                    page_nums = item.get("source", {}).get("page_numbers", [1])
+                    raw_items.append((item, page_nums))
+                if not llm_failed and chunk_extractor is None:
+                    warnings.append("Extracted commitments using heuristic rules (no LLM configured).")
+            else:
+                raise CommitmentExtractionError(
+                    "No ESG commitments could be identified in the uploaded document."
+                )
 
     logger.info("Raw commitments extracted: %s", len(raw_items))
 

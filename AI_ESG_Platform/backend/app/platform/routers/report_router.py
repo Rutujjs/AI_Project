@@ -86,12 +86,23 @@ async def export_report_pdf(
     ),
 ):
     """Compile and stream executive multi-page PDF document generated in-memory."""
-    report_data = await compile_report_data(
-        db=db,
-        org_id=current_user.organization_id,
-        user=current_user,
-        req=req,
-    )
+    if req.report_data:
+        try:
+            report_data = ReportDataResponse(**req.report_data)
+        except Exception:
+            report_data = await compile_report_data(
+                db=db,
+                org_id=current_user.organization_id,
+                user=current_user,
+                req=req,
+            )
+    else:
+        report_data = await compile_report_data(
+            db=db,
+            org_id=current_user.organization_id,
+            user=current_user,
+            req=req,
+        )
 
     pdf_bytes = build_report_pdf(report_data)
 

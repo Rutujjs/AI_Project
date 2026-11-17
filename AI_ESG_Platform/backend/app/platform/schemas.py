@@ -354,6 +354,7 @@ class ReportGenerateRequest(BaseModel):
     include_sections: Optional[List[str]] = Field(default=None, description="Optional custom section filter")
     sections: Optional[List[str]] = Field(default=None, description="Optional custom section filter (alias)")
     notes: Optional[str] = Field(default=None, description="Optional executive remarks to include")
+    report_data: Optional[Dict[str, Any]] = Field(default=None, description="Exact report preview data to render into PDF")
 
 
 class ReportSectionData(BaseModel):

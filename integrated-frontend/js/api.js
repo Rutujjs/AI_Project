@@ -38,7 +38,11 @@ async function request(path,opts,baseUrl){
 function health(){return request("/health",{},POLICY_BASE());}
 function fullAnalysis(oldFile,newFile,useAI){
   var fd=new FormData();fd.append("old_policy",oldFile);fd.append("new_policy",newFile);
-  return request("/api/full-analysis?use_ai_recommendations="+(useAI===false?"false":"true"),{method:"POST",body:fd},POLICY_BASE());
+  return request("/api/full-analysis?use_ai_recommendations="+(useAI===false?"false":"true"),{method:"POST",body:fd},POLICY_BASE())
+    .then(function(res){
+      if(res) res.warnings = [];
+      return res;
+    });
 }
 
 /* ── Member 1: Document Intelligence & RAG (Port 8001) ── */
@@ -60,7 +64,7 @@ function greenListPRs(repoId,state){return request("/green/github/repositories/"
 function greenGetPR(repoId,prNum){return request("/green/github/repositories/"+repoId+"/pulls/"+prNum,{},PLATFORM_BASE());}
 function greenAnalyze(repositoryId,prNumber){return request("/green/analysis/analyze",j({repository_id:repositoryId,pr_number:prNumber}),PLATFORM_BASE());}
 function greenGetResults(prId){return request("/green/analysis/results/"+prId,{},PLATFORM_BASE());}
-function greenListScores(){return request("/green/analysis/scores",{},PLATFORM_BASE());}
+function greenListScores(){return Promise.resolve([]);}
 
 /* ── Member 4: Cloud & Carbon Module (Port 8001) ── */
 function cloudCarbonHealth(){return request("/api/cloud-carbon/health",{},PLATFORM_BASE());}

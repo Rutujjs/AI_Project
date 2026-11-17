@@ -8,6 +8,54 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
+  <style>
+    @media print {
+      body, html {
+        background: #fff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      #app-shell, #topbar, .page-heading, #report-config-card, .toolbar, #preview-status-badge, #preview-footer-timestamp, #btn-scroll-preview, #btn-footer-export-pdf {
+        display: none !important;
+      }
+      .page-shell, .page-content, #page-app, .grid-2 {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+      }
+      #report-preview-card {
+        border: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+      }
+      #report-preview-card .section-head {
+        display: none !important;
+      }
+      #report-preview-container {
+        border: none !important;
+        overflow: visible !important;
+        min-height: auto !important;
+        max-height: none !important;
+      }
+      .report-cover, .report-section {
+        page-break-inside: avoid;
+      }
+      .data-table {
+        page-break-inside: auto;
+      }
+      .data-table tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+      @page {
+        margin: 1.2cm;
+        size: letter portrait;
+      }
+    }
+  </style>
 </head>
 <body data-page="reports">
   <div id="app-shell"></div>
@@ -30,6 +78,6 @@
   <script src="js/mock-data.js"></script>
   <script src="js/common.js"></script>
   <script src="js/api.js"></script>
-  <script src="js/reports.js"></script>
+  <script src="js/reports.js?v=20261117_06"></script>
 </body>
 </html>

@@ -14,7 +14,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     if (sessionStorage.getItem(sessionKey) === "1") {
-      window.location.replace("index.html");
+      window.location.replace("documents.html");
       return;
     }
 
@@ -48,10 +48,11 @@
               sessionStorage.setItem("esg_user_name", data.user.full_name || data.user.username);
             }
             sessionStorage.setItem(sessionKey, "1");
-            const destination = sessionStorage.getItem(destinationKey) || "index.html";
+            const destination = sessionStorage.getItem(destinationKey) || "documents.html";
             sessionStorage.removeItem(destinationKey);
             const target = new URL(destination, window.location.origin);
-            window.location.replace(target.origin === window.location.origin ? target.href : "index.html");
+            const isTargetForbidden = target.pathname.endsWith("index.html") || target.pathname.endsWith("risks.html") || target.pathname.endsWith("insights.html") || target.pathname === "/" || target.pathname === "";
+            window.location.replace(target.origin === window.location.origin && !isTargetForbidden ? target.href : "documents.html");
             return;
           }
         } else {
@@ -64,10 +65,11 @@
         if ((username === "admin" || username === "auditor" || username === "developer" || username === "viewer") && password === "esg2026") {
           sessionStorage.setItem(sessionKey, "1");
           sessionStorage.setItem("esg_user_role", username);
-          const destination = sessionStorage.getItem(destinationKey) || "index.html";
+          const destination = sessionStorage.getItem(destinationKey) || "documents.html";
           sessionStorage.removeItem(destinationKey);
           const target = new URL(destination, window.location.origin);
-          window.location.replace(target.origin === window.location.origin ? target.href : "index.html");
+          const isTargetForbidden = target.pathname.endsWith("index.html") || target.pathname.endsWith("risks.html") || target.pathname.endsWith("insights.html") || target.pathname === "/" || target.pathname === "";
+          window.location.replace(target.origin === window.location.origin && !isTargetForbidden ? target.href : "documents.html");
           return;
         }
         error.textContent = "Username or password is incorrect.";

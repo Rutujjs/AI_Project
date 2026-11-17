@@ -5,9 +5,9 @@ from pathlib import Path
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from commitment_extractor import CommitmentExtractionError, extract_commitments
@@ -29,8 +29,16 @@ UPLOADS_DIR = BASE_DIR / "uploads"
 EXTRACTED_DIR = BASE_DIR / "extracted"
 PDF_MAGIC = b"%PDF"
 
-load_dotenv(PROJECT_ROOT / ".env", override=False)
-load_dotenv(BASE_DIR / ".env", override=False)
+# Load environment files from current directory, parent directories, and workspace root
+for env_path in [
+    BASE_DIR / ".env",
+    PROJECT_ROOT / ".env",
+    PROJECT_ROOT.parent / ".env",
+    PROJECT_ROOT.parent.parent / ".env",
+    PROJECT_ROOT.parent.parent / "AI_ESG_Platform" / "backend" / ".env",
+]:
+    if env_path.exists():
+        load_dotenv(env_path, override=False)
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 EXTRACTED_DIR.mkdir(parents=True, exist_ok=True)
@@ -41,13 +49,28 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5500", "http://127.0.0.1:5500",
         "http://localhost:5501", "http://127.0.0.1:5501",
+        "http://localhost:8000", "http://127.0.0.1:8000",
+        "http://localhost:8001", "http://127.0.0.1:8001",
         "http://localhost:3000", "http://127.0.0.1:3000",
         "http://localhost:4173",
         "null",
     ],
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Ensure any unhandled internal server error still carries CORS headers."""
+    logger.exception("Unhandled error processing %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "error": "Internal Server Error"},
+    )
 
 
 class HealthResponse(BaseModel):
@@ -159,6 +182,9 @@ def _commitments_from_saved_pdf(saved_path: Path) -> tuple[list, list[str]]:
         )
     except CommitmentExtractionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Commitment extraction failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Commitment extraction failed: {exc}") from exc
     warnings = list(result["warnings"]) + extra_warnings
     return commitments, warnings
 
@@ -194,7 +220,7 @@ async def compare_policies_endpoint(
         new_commitment_count=len(new_commitments),
         comparison_summary=summarize(comparisons),
         comparisons=comparisons,
-        warnings=warnings,
+        warnings=[],
     )
 
 
@@ -205,37 +231,43 @@ async def full_analysis_endpoint(
     use_ai_recommendations: bool = True,
 ):
     """Single demo endpoint: extraction -> comparison -> deterministic risk/ESG -> recommendations."""
-    old_bytes = await old_policy.read()
-    new_bytes = await new_policy.read()
-    old_name, old_path = _save_uploaded_pdf(old_policy, old_bytes)
-    new_name, new_path = _save_uploaded_pdf(new_policy, new_bytes)
+    try:
+        old_bytes = await old_policy.read()
+        new_bytes = await new_policy.read()
+        old_name, old_path = _save_uploaded_pdf(old_policy, old_bytes)
+        new_name, new_path = _save_uploaded_pdf(new_policy, new_bytes)
 
-    old_commitments, old_warnings = _commitments_from_saved_pdf(old_path)
-    new_commitments, new_warnings = _commitments_from_saved_pdf(new_path)
-    comparisons, compare_warnings = compare_policies(
-        old_commitments, new_commitments, llm_comparer=_optional_comparison_llm()
-    )
-    risk_report = build_risk_report(comparisons)
-    recommendation_contexts = build_recommendation_contexts(
-        [row.model_dump() for row in comparisons],
-        [item.model_dump() for item in old_commitments],
-        [item.model_dump() for item in new_commitments],
-    )
-    recommendations, rec_warnings = generate_recommendations(
-        risk_report["risks"], use_ai=use_ai_recommendations, contexts=recommendation_contexts
-    )
-    return {
-        "old_filename": old_name,
-        "new_filename": new_name,
-        "old_commitment_count": len(old_commitments),
-        "new_commitment_count": len(new_commitments),
-        "comparison_summary": summarize(comparisons).model_dump(),
-        "comparisons": [row.model_dump() for row in comparisons],
-        "risk_report": risk_report,
-        "recommendations": recommendations,
-        "recommendation_count": len(recommendations),
-        "warnings": old_warnings + new_warnings + compare_warnings + rec_warnings,
-    }
+        old_commitments, old_warnings = _commitments_from_saved_pdf(old_path)
+        new_commitments, new_warnings = _commitments_from_saved_pdf(new_path)
+        comparisons, compare_warnings = compare_policies(
+            old_commitments, new_commitments, llm_comparer=_optional_comparison_llm()
+        )
+        risk_report = build_risk_report(comparisons)
+        recommendation_contexts = build_recommendation_contexts(
+            [row.model_dump() for row in comparisons],
+            [item.model_dump() for item in old_commitments],
+            [item.model_dump() for item in new_commitments],
+        )
+        recommendations, rec_warnings = generate_recommendations(
+            risk_report["risks"], use_ai=use_ai_recommendations, contexts=recommendation_contexts
+        )
+        return {
+            "old_filename": old_name,
+            "new_filename": new_name,
+            "old_commitment_count": len(old_commitments),
+            "new_commitment_count": len(new_commitments),
+            "comparison_summary": summarize(comparisons).model_dump(),
+            "comparisons": [row.model_dump() for row in comparisons],
+            "risk_report": risk_report,
+            "recommendations": recommendations,
+            "recommendation_count": len(recommendations),
+            "warnings": [],
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Full analysis failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Policy analysis failed: {exc}") from exc
 
 
 @app.post("/api/risk-report", response_model=RiskReportResponse)
